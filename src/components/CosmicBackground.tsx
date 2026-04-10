@@ -88,10 +88,10 @@ export function CosmicBackground({ emotion = '平靜' }: CosmicBackgroundProps) 
       opacityDirection: number;
 
       constructor() {
-        this.x = Math.random() * canvas.width;
-        this.y = Math.random() * canvas.height;
-        this.radius = Math.random() * 1.5 + 0.5;
-        this.vx = (Math.random() - 0.5) * 0.3;
+  this.x = Math.random() * (canvas?.width || 800);
+  this.y = Math.random() * (canvas?.height || 600);
+  this.radius = Math.random() * 1.5 + 0.5;
+  this.vx = (Math.random() - 0.5) * 0.3;
         this.vy = (Math.random() - 0.5) * 0.3;
         this.opacity = Math.random() * 0.5 + 0.5;
         this.opacityDirection = Math.random() > 0.5 ? 0.01 : -0.01;
