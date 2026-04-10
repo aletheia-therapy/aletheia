@@ -106,8 +106,8 @@ export function CosmicBackground({ emotion = '平靜' }: CosmicBackgroundProps) 
           this.opacityDirection *= -1;
         }
 
-        if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
-        if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+        if (this.x < 0 || this.x > (canvas?.width || 800)) this.vx *= -1;
+if (this.y < 0 || this.y > (canvas?.height || 600)) this.vy *= -1;
       }
 
       draw() {
