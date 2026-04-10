@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 import { CosmicBackground } from '@/components/CosmicBackground';
@@ -20,7 +20,8 @@ interface MessageData {
   metadata: any;
 }
 
-export default function MindMapPage() {
+// 內部 Component 使用 useSearchParams
+function MindMapContent() {
   const searchParams = useSearchParams();
   const sessionId = searchParams.get('session');
   
@@ -454,5 +455,18 @@ export default function MindMapPage() {
 
       <Footer />
     </div>
+  );
+}
+
+// 主 Component 包裝 Suspense
+export default function MindMapPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="text-white text-xl">✨ 載入中...</div>
+      </div>
+    }>
+      <MindMapContent />
+    </Suspense>
   );
 }

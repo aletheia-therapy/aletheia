@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { CosmicBackground } from '@/components/CosmicBackground';
@@ -30,7 +30,8 @@ interface Analysis {
 
 const MESSAGE_LIMIT = 15;
 
-export default function TherapyPage() {
+// 內部 Component 使用 useSearchParams
+function TherapyContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const intent = searchParams.get('intent') || 'explore';
@@ -42,7 +43,7 @@ export default function TherapyPage() {
   const [currentEmotion, setCurrentEmotion] = useState('平靜');
   const [currentAnalysis, setCurrentAnalysis] = useState<Analysis | null>(null);
   const [showMindMapHint, setShowMindMapHint] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null); // 🔥 新增：錯誤訊息狀態
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const intentNames: Record<string, string> = {
@@ -102,7 +103,7 @@ export default function TherapyPage() {
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
-    setErrorMessage(null); // 🔥 清除舊錯誤
+    setErrorMessage(null);
 
     try {
       const response = await fetch('/api/chat', {
@@ -139,12 +140,10 @@ export default function TherapyPage() {
     } catch (error) {
       console.error('❌ 發送訊息失敗:', error);
       
-      // 🔥 新增：友善的錯誤處理
-      setErrorMessage('抱歉，Aletheia 暫時需要休息一下 😴 請稍後再試，或重新整理頁面。');
+      setErrorMessage('抱歉,Aletheia 暫時需要休息一下 😴 請稍後再試,或重新整理頁面。');
       
-      // 把使用者的訊息也加回來（因為發送失敗了）
       setMessages(prev => prev.slice(0, -1));
-      setInput(userMessage.content); // 恢復輸入
+      setInput(userMessage.content);
       
     } finally {
       setIsLoading(false);
@@ -162,12 +161,12 @@ export default function TherapyPage() {
     if (sessionId && !sessionId.startsWith('temp-')) {
       router.push(`/mind-map?session=${sessionId}`);
     } else {
-      alert('請先開始對話，才能查看心靈地圖');
+      alert('請先開始對話,才能查看心靈地圖');
     }
   };
 
   const handleClearChat = () => {
-    if (confirm('確定要清除對話並開始新的會話嗎？')) {
+    if (confirm('確定要清除對話並開始新的會話嗎?')) {
       window.location.reload();
     }
   };
@@ -220,10 +219,10 @@ export default function TherapyPage() {
               <div className="text-2xl">💡</div>
               <div>
                 <p className="text-sm text-white/90 mb-2 leading-relaxed">
-                  <strong>提示：</strong>對話進行到一半了！
+                  <strong>提示:</strong>對話進行到一半了!
                 </p>
                 <p className="text-xs text-white/70 leading-relaxed">
-                  對話結束後，你可以查看我為你整理的<strong>心靈地圖</strong>，看見這次對話的情感軌跡和心理洞察。
+                  對話結束後,你可以查看我為你整理的<strong>心靈地圖</strong>,看見這次對話的情感軌跡和心理洞察。
                 </p>
               </div>
             </div>
@@ -231,7 +230,6 @@ export default function TherapyPage() {
         </div>
       )}
 
-      {/* 🔥 新增：錯誤訊息浮動框 */}
       {errorMessage && (
         <div className="fixed top-24 left-1/2 transform -translate-x-1/2 z-40 animate-slide-down">
           <div className="backdrop-blur-md bg-gradient-to-r from-red-500/20 to-orange-500/20 border border-red-400/30 rounded-2xl px-6 py-4 shadow-2xl max-w-md">
@@ -262,10 +260,10 @@ export default function TherapyPage() {
           <h2 className="text-base font-light text-white/70 mb-2">首席AI心理師</h2>
           <p className="text-sm text-white/60">宇宙中的心靈對話</p>
           <p className="text-xs text-white/40 mt-2">
-            當前意圖：{intentNames[intent] || intent}
+            當前意圖:{intentNames[intent] || intent}
           </p>
           <p className="text-xs text-white/40 mt-1">
-            訊息數量：{messageCount}/{MESSAGE_LIMIT}
+            訊息數量:{messageCount}/{MESSAGE_LIMIT}
           </p>
         </div>
 
@@ -278,17 +276,17 @@ export default function TherapyPage() {
                     <div className="text-3xl mt-1">✨</div>
                     <div className="flex-1">
                       <p className="text-base mb-3 leading-relaxed">
-                        你好，我是 Aletheia。
+                        你好,我是 Aletheia。
                       </p>
                       <p className="text-lg font-light mb-3 text-white">
-                        今天想要跟我談什麼呢？
+                        今天想要跟我談什麼呢?
                       </p>
                       <p className="text-sm text-white/70 mb-4 leading-relaxed">
-                        你可以暢所欲言，這裡是安全的空間。無論是困擾、疑惑，還是單純想要被理解，我都在這裡陪伴你。
+                        你可以暢所欲言,這裡是安全的空間。無論是困擾、疑惑,還是單純想要被理解,我都在這裡陪伴你。
                       </p>
                       <div className="pt-3 border-t border-white/10">
                         <p className="text-xs text-white/50">
-                          💡 限時免費測試：每個對話最多 {MESSAGE_LIMIT} 則訊息（約 30-45 分鐘深度對話）
+                          💡 限時免費測試:每個對話最多 {MESSAGE_LIMIT} 則訊息(約 30-45 分鐘深度對話)
                         </p>
                       </div>
                     </div>
@@ -343,13 +341,13 @@ export default function TherapyPage() {
                         我們的對話到這裡告一段落了。
                       </p>
                       <p className="text-sm text-white/80 mb-4 leading-relaxed">
-                        在這次深度對話中，我看見了你的勇氣與真誠。每一個想法、每一份感受，都是你內心宇宙的一部分。
+                        在這次深度對話中,我看見了你的勇氣與真誠。每一個想法、每一份感受,都是你內心宇宙的一部分。
                       </p>
                       <p className="text-base font-light mb-4 text-white">
-                        💎 想看看我為你整理的心靈地圖嗎？
+                        💎 想看看我為你整理的心靈地圖嗎?
                       </p>
                       <p className="text-xs text-white/60 mb-5 leading-relaxed">
-                        我已經把這次對話的情感軌跡、核心議題、心理洞察整理成視覺化的心靈地圖，幫助你更清晰地看見自己。
+                        我已經把這次對話的情感軌跡、核心議題、心理洞察整理成視覺化的心靈地圖,幫助你更清晰地看見自己。
                       </p>
                       
                       <div className="flex flex-col space-y-3">
@@ -365,7 +363,7 @@ export default function TherapyPage() {
                           onClick={handleClearChat}
                           className="w-full px-5 py-3 bg-white/10 hover:bg-white/20 rounded-xl text-white/80 text-sm transition-all"
                         >
-                          🔄 或者，開始新的對話
+                          🔄 或者,開始新的對話
                         </button>
                       </div>
 
@@ -391,7 +389,7 @@ export default function TherapyPage() {
                 onKeyPress={handleKeyPress}
                 placeholder={
                   isLimitReached 
-                    ? '已達到訊息上限，請查看心靈地圖或開始新對話...' 
+                    ? '已達到訊息上限,請查看心靈地圖或開始新對話...' 
                     : '在這裡分享你的想法...'
                 }
                 className="flex-1 bg-white/10 text-white placeholder-white/40 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500/50 resize-none backdrop-blur-sm border border-white/10"
@@ -414,7 +412,7 @@ export default function TherapyPage() {
                     <span className="text-2xl">🗺️</span>
                     <div>
                       <p className="text-white/90 text-sm font-medium">隨時可查看你的心靈地圖</p>
-                      <p className="text-white/60 text-xs">點選上方按鈕，查看目前對話的完整分析</p>
+                      <p className="text-white/60 text-xs">點選上方按鈕,查看目前對話的完整分析</p>
                     </div>
                   </div>
                   <button
@@ -507,5 +505,18 @@ export default function TherapyPage() {
         }
       `}</style>
     </div>
+  );
+}
+
+// 主 Component 包裝 Suspense
+export default function TherapyPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="text-white text-xl">✨ 載入中...</div>
+      </div>
+    }>
+      <TherapyContent />
+    </Suspense>
   );
 }
