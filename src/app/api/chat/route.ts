@@ -3,8 +3,10 @@ import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
+// 🧠 新增：記憶檢索系統
+import { recallSimilarExperiences, formatMemoriesForPrompt } from '@/lib/memory-recall';
 
-// 🔥 新增：成本追蹤
+// 🔥 成本追蹤
 let dailyTokenUsage = {
   date: new Date().toDateString(),
   inputTokens: 0,
@@ -15,7 +17,7 @@ let dailyTokenUsage = {
   apiCalls: 0,
 };
 
-// 🔥 新增：成本計算函數
+// 🔥 成本計算函數
 function calculateCost(usage: any): number {
   // Claude Sonnet 4 定價（2025年4月）
   const PRICE_INPUT = 3.00 / 1_000_000;        // $3 per 1M tokens
@@ -31,7 +33,7 @@ function calculateCost(usage: any): number {
   return inputCost + cacheWriteCost + cacheReadCost + outputCost;
 }
 
-// 🔥 新增：重置每日計數（如果日期改變）
+// 🔥 重置每日計數（如果日期改變）
 function checkAndResetDaily() {
   const today = new Date().toDateString();
   if (dailyTokenUsage.date !== today) {
@@ -177,22 +179,44 @@ export async function POST(request: NextRequest) {
 
     const conversationHistory = historyData || [];
 
-    // 3. 呼叫 Claude API（啟用 Prompt Caching）
+    // 🧠 2.5 從過往經驗中檢索相關記憶
+    const recalledMemories = await recallSimilarExperiences(message, 3);
+    const memoryBlock = formatMemoriesForPrompt(recalledMemories);
+    if (memoryBlock) {
+      console.log(`💡 已注入 ${recalledMemories.length} 筆過往經驗到 System Prompt`);
+    }
+
+    // 3. 呼叫 Claude API（啟用 Prompt Caching + 記憶注入）
     console.log('🤖 呼叫 Claude API（溫度:', temperature, '）...');
     console.log('💾 Prompt Caching 已啟用');
+    
+    // 🔑 組裝 System Prompt Blocks
+    // 重點：主要 SYSTEM_PROMPT 區塊保留 cache_control，確保 90% 快取折扣
+    // 記憶區塊作為獨立 block（每次不同，不快取）
+    const systemBlocks: Array<{ 
+      type: 'text'; 
+      text: string; 
+      cache_control?: { type: 'ephemeral' } 
+    }> = [
+      {
+        type: 'text',
+        text: SYSTEM_PROMPT,
+        cache_control: { type: 'ephemeral' }
+      }
+    ];
+    
+    if (memoryBlock) {
+      systemBlocks.push({
+        type: 'text',
+        text: memoryBlock,
+      });
+    }
     
     const response = await anthropic.messages.create({
       model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
       max_tokens: 2000,
       temperature: temperature,
-      // 🔥 關鍵修改：改用陣列格式並加上快取標記
-      system: [
-        {
-          type: "text",
-          text: SYSTEM_PROMPT,
-          cache_control: { type: "ephemeral" }
-        }
-      ],
+      system: systemBlocks,
       messages: [
         ...conversationHistory.map((msg: any) => ({
           role: msg.role,
@@ -207,13 +231,10 @@ export async function POST(request: NextRequest) {
 
     // 🔍 檢查快取效果 + 成本追蹤
     if (response.usage) {
-      // 重置每日計數（如果需要）
       checkAndResetDaily();
 
-      // 計算本次成本
       const thisCost = calculateCost(response.usage);
       
-      // 更新每日統計
       dailyTokenUsage.inputTokens += response.usage.input_tokens || 0;
       dailyTokenUsage.cacheCreationTokens += (response.usage as any).cache_creation_input_tokens || 0;
       dailyTokenUsage.cacheReadTokens += (response.usage as any).cache_read_input_tokens || 0;
@@ -228,7 +249,6 @@ export async function POST(request: NextRequest) {
       console.log('  - Cache read tokens:', (response.usage as any).cache_read_input_tokens || 0);
       console.log('  - Output tokens:', response.usage.output_tokens);
       
-      // 計算快取效果
       const cacheRead = (response.usage as any).cache_read_input_tokens || 0;
       if (cacheRead > 0) {
         console.log('✅ 快取命中！省了', cacheRead, 'tokens');
@@ -239,7 +259,6 @@ export async function POST(request: NextRequest) {
       console.log('📈 今日累計: $', dailyTokenUsage.totalCostUSD.toFixed(4), 'USD ≈ NT$', (dailyTokenUsage.totalCostUSD * 32).toFixed(2));
       console.log('📞 今日呼叫次數:', dailyTokenUsage.apiCalls);
       
-      // 🔥 警告：接近每日上限
       const dailyCostNTD = dailyTokenUsage.totalCostUSD * 32;
       if (dailyCostNTD >= 100) {
         console.log('🚨🚨🚨 警告：今日花費已達 NT$100 上限！🚨🚨🚨');
