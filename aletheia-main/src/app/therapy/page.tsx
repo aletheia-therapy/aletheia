@@ -86,36 +86,32 @@ function TherapyContent() {
   }, [messages]);
 
   const handleVoiceInput = () => {
-    const SpeechRecognitionAPI =
-      (window as unknown as Record<string, unknown>).webkitSpeechRecognition ||
-      (window as unknown as Record<string, unknown>).SpeechRecognition;
-
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SpeechRecognitionAPI = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
     if (!SpeechRecognitionAPI) {
-      alert('你的瀏覽器不支援語音輸入，建議使用 Chrome');
+      alert('Please use Chrome for voice input');
       return;
     }
-
     if (isListening) {
-      (recognitionRef.current as { stop: () => void } | null)?.stop();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (recognitionRef.current as any)?.stop();
       setIsListening(false);
       return;
     }
-
-    const recognition = new SpeechRecognitionAPI();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const recognition = new SpeechRecognitionAPI() as any;
     recognition.lang = 'zh-TW';
     recognition.continuous = false;
     recognition.interimResults = true;
-
     recognition.onstart = () => setIsListening(true);
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      const transcript = Array.from(event.results)
-        .map((result) => result[0].transcript)
+    recognition.onresult = (event: any) => {
+      const transcript = Array.from(event.results as any[])
+        .map((result: any) => result[0].transcript)
         .join('');
       setInput(transcript);
     };
     recognition.onend = () => setIsListening(false);
     recognition.onerror = () => setIsListening(false);
-
     recognitionRef.current = recognition;
     recognition.start();
   };
