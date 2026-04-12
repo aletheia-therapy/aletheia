@@ -93,50 +93,54 @@ function TherapyContent() {
       return;
     }
     if (isListening) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (recognitionRef.current as any)?.stop();
       recognitionRef.current = null;
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
       setIsListening(false);
       return;
     }
     finalTextRef.current = "";
-    setIsListening(true);
-    const startRecognition = () => {
-      if (!recognitionRef.current) return;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const recognition = new SpeechRecognitionAPI() as any;
-      recognition.lang = "zh-TW";
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        finalTextRef.current = finalTextRef.current + transcript + " ";
-        setInput(finalTextRef.current.trim());
-        if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-        silenceTimerRef.current = setTimeout(() => {
-          recognitionRef.current = null;
-          setIsListening(false);
-        }, 3000);
-      };
-      recognition.onend = () => {
-        if (recognitionRef.current) {
-          setTimeout(() => startRecognition(), 100);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const recognition = new SpeechRecognitionAPI() as any;
+    recognition.lang = "zh-TW";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.onstart = () => setIsListening(true);
+    recognition.onresult = (event: any) => {
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+      let newFinal = "";
+      let interim = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          newFinal += event.results[i][0].transcript;
+        } else {
+          interim += event.results[i][0].transcript;
         }
-      };
-      recognition.onerror = (e: any) => {
-        if (e.error === "no-speech" && recognitionRef.current) {
-          setTimeout(() => startRecognition(), 100);
-          return;
-        }
+      }
+      if (newFinal) {
+        finalTextRef.current = finalTextRef.current + newFinal + " ";
+      }
+      setInput((finalTextRef.current + interim).trim());
+      silenceTimerRef.current = setTimeout(() => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (recognitionRef.current as any)?.stop();
         recognitionRef.current = null;
         setIsListening(false);
-      };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (recognitionRef as any).current = recognition;
-      try { recognition.start(); } catch {}
+      }, 3000);
     };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (recognitionRef as any).current = true;
-    startRecognition();
+    recognition.onend = () => {
+      setIsListening(false);
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+    };
+    recognition.onerror = (e: any) => {
+      if (e.error !== "no-speech") {
+        recognitionRef.current = null;
+        setIsListening(false);
+      }
+    };
+    recognitionRef.current = recognition;
+    recognition.start();
   };
 
   const handleSend = async () => {
