@@ -46,6 +46,24 @@ function TherapyContent() {
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<unknown>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputAreaRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleViewportResize = () => {
+      if (window.visualViewport) {
+        const offsetY = window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop;
+        if (inputAreaRef.current) {
+          inputAreaRef.current.style.transform = `translateY(-${offsetY}px)`;
+        }
+      }
+    };
+    window.visualViewport?.addEventListener("resize", handleViewportResize);
+    window.visualViewport?.addEventListener("scroll", handleViewportResize);
+    return () => {
+      window.visualViewport?.removeEventListener("resize", handleViewportResize);
+      window.visualViewport?.removeEventListener("scroll", handleViewportResize);
+    };
+  }, []);
   const finalTextRef = useRef<string>('');
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -352,7 +370,7 @@ function TherapyContent() {
             )}
             <div ref={messagesEndRef} />
           </div>
-          <div className="p-2 sm:p-4 border-t border-white/10 backdrop-blur-sm bg-white/5 flex-shrink-0">
+          <div ref={inputAreaRef} className="p-2 sm:p-4 border-t border-white/10 backdrop-blur-sm bg-white/5 flex-shrink-0">
             <div className="flex space-x-2 sm:space-x-3">
               <button
                 onClick={handleVoiceInput}
@@ -422,4 +440,6 @@ export default function TherapyPage() {
     </Suspense>
   );
 }
+
+
 
