@@ -364,8 +364,8 @@ function TherapyContent() {
                 onKeyPress={handleKeyPress}
                 placeholder={isLimitReached ? 'Limit reached' : isListening ? 'Listening...' : 'Share your thoughts, or click mic to speak'}
                 className="flex-1 bg-white/10 text-white placeholder-white/40 rounded-lg sm:rounded-xl px-3 py-2 sm:px-4 sm:py-3 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-purple-500/50 resize-none backdrop-blur-sm border border-white/10"
-                rows={1}
-                style={{ maxHeight: '80px' }}
+                rows={3}
+                style={{ maxHeight: "200px", overflowY: "auto" }}
                 disabled={isLoading || !sessionId || isLimitReached}
               />
               <button
