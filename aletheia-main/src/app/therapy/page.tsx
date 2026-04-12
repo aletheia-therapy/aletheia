@@ -93,54 +93,52 @@ function TherapyContent() {
       return;
     }
     if (isListening) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (recognitionRef.current as any)?.stop();
       recognitionRef.current = null;
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
       setIsListening(false);
       return;
     }
     finalTextRef.current = "";
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const recognition = new SpeechRecognitionAPI() as any;
-    recognition.lang = "zh-TW";
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.onstart = () => setIsListening(true);
-    recognition.onresult = (event: any) => {
-      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-      let newFinal = "";
-      let interim = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        if (event.results[i].isFinal) {
-          newFinal += event.results[i][0].transcript;
-        } else {
-          interim += event.results[i][0].transcript;
+    setIsListening(true);
+    const startRecognition = () => {
+      if (!(recognitionRef as any).current) return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const r = new SpeechRecognitionAPI() as any;
+      r.lang = "zh-TW";
+      r.continuous = false;
+      r.interimResults = false;
+      r.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript.trim();
+        if (transcript) {
+          finalTextRef.current = finalTextRef.current
+            ? finalTextRef.current + " " + transcript
+            : transcript;
+          setInput(finalTextRef.current);
         }
-      }
-      if (newFinal) {
-        finalTextRef.current = finalTextRef.current + newFinal + " ";
-      }
-      setInput((finalTextRef.current + interim).trim());
-      silenceTimerRef.current = setTimeout(() => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (recognitionRef.current as any)?.stop();
-        recognitionRef.current = null;
+        if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = setTimeout(() => {
+          (recognitionRef as any).current = null;
+          setIsListening(false);
+        }, 3000);
+      };
+      r.onend = () => {
+        if ((recognitionRef as any).current) {
+          setTimeout(startRecognition, 50);
+        }
+      };
+      r.onerror = (e: any) => {
+        if ((e.error === "no-speech" || e.error === "aborted") && (recognitionRef as any).current) {
+          setTimeout(startRecognition, 50);
+          return;
+        }
+        (recognitionRef as any).current = null;
         setIsListening(false);
-      }, 3000);
+      };
+      (recognitionRef as any).current = r;
+      try { r.start(); } catch {}
     };
-    recognition.onend = () => {
-      setIsListening(false);
-      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-    };
-    recognition.onerror = (e: any) => {
-      if (e.error !== "no-speech") {
-        recognitionRef.current = null;
-        setIsListening(false);
-      }
-    };
-    recognitionRef.current = recognition;
-    recognition.start();
+    (recognitionRef as any).current = true;
+    startRecognition();
   };
 
   const handleSend = async () => {
