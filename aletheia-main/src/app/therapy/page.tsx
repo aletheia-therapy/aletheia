@@ -96,7 +96,7 @@ function TherapyContent() {
     }
 
     if (isListening) {
-      recognitionRef.current?.stop();
+      (recognitionRef.current as { stop: () => void } | null)?.stop();
       setIsListening(false);
       return;
     }
@@ -418,5 +418,6 @@ export default function TherapyPage() {
     </Suspense>
   );
 }
+
 
 
