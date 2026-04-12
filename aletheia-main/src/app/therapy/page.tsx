@@ -43,6 +43,8 @@ function TherapyContent() {
   const [currentAnalysis, setCurrentAnalysis] = useState<Analysis | null>(null);
   const [showMindMapHint, setShowMindMapHint] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const intentNames: Record<string, string> = {
@@ -89,6 +91,43 @@ function TherapyContent() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  const handleVoiceInput = () => {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      alert('你的瀏覽器不支援語音輸入，建議使用 Chrome 瀏覽器');
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+
+    const SpeechRecognitionAPI =
+      (window as unknown as { webkitSpeechRecognition: typeof SpeechRecognition }).webkitSpeechRecognition ||
+      (window as unknown as { SpeechRecognition: typeof SpeechRecognition }).SpeechRecognition;
+
+    const recognition = new SpeechRecognitionAPI();
+    recognition.lang = 'zh-TW';
+    recognition.continuous = false;
+    recognition.interimResults = true;
+
+    recognition.onstart = () => setIsListening(true);
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      const transcript = Array.from(event.results)
+        .map((result) => result[0].transcript)
+        .join('');
+      setInput(transcript);
+    };
+
+    recognition.onend = () => setIsListening(false);
+    recognition.onerror = () => setIsListening(false);
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  };
+
   const handleSend = async () => {
     if (!input.trim() || !sessionId || isLimitReached) return;
 
@@ -134,14 +173,11 @@ function TherapyContent() {
         timestamp: new Date(),
       };
 
-      // 🧠 檢查是否達到對話上限，觸發背景反思
       const updatedMessages = [...messages, userMessage, aiMessage];
       setMessages(prev => [...prev, aiMessage]);
 
       if (updatedMessages.length >= MESSAGE_LIMIT) {
         console.log('🧠 對話達到上限，觸發背景自我反思...');
-        
-        // 使用 setTimeout 讓反思在下一個 tick 執行，不阻塞 UI
         setTimeout(() => {
           fetch('/api/reflect', {
             method: 'POST',
@@ -175,12 +211,9 @@ function TherapyContent() {
 
     } catch (error) {
       console.error('❌ 發送訊息失敗:', error);
-      
       setErrorMessage('抱歉,Aletheia 暫時需要休息一下 😴 請稍後再試,或重新整理頁面。');
-      
       setMessages(prev => prev.slice(0, -1));
       setInput(userMessage.content);
-      
     } finally {
       setIsLoading(false);
     }
@@ -236,7 +269,7 @@ function TherapyContent() {
         </button>
       </div>
 
-      {/* ⚠️ 錯誤訊息 */}
+      {/* 錯誤訊息 */}
       {errorMessage && (
         <div className="fixed top-14 sm:top-24 left-1/2 transform -translate-x-1/2 z-40 animate-slide-down w-[92%] sm:w-auto">
           <div className="backdrop-blur-md bg-gradient-to-r from-red-500/20 to-orange-500/20 border border-red-400/30 rounded-2xl px-4 py-3 sm:px-6 sm:py-4 shadow-2xl max-w-md">
@@ -261,7 +294,7 @@ function TherapyContent() {
         </div>
       )}
 
-      {/* 📊 左下角:情感分析浮動面板(桌面版) */}
+      {/* 左下角情感分析浮動面板 */}
       {currentAnalysis && (
         <div className="hidden sm:block fixed bottom-14 left-4 z-20 animate-fade-in">
           <div className="backdrop-blur-md bg-white/5 border border-white/10 rounded-2xl px-4 py-3 shadow-2xl max-w-xs">
@@ -277,7 +310,7 @@ function TherapyContent() {
         </div>
       )}
 
-      {/* 🗺️ 右下角:心靈地圖提示浮動面板(桌面版) */}
+      {/* 右下角心靈地圖提示 */}
       {messageCount >= 2 && !isLimitReached && (
         <div className="hidden sm:block fixed bottom-14 right-4 z-20 animate-fade-in">
           <div className="backdrop-blur-md bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-400/20 rounded-2xl px-4 py-3 shadow-2xl max-w-xs">
@@ -302,7 +335,6 @@ function TherapyContent() {
       <div className="relative z-10 flex-1 flex flex-col items-center px-2 sm:px-4 pt-10 sm:pt-16 pb-1 sm:pb-2 min-h-0">
         {/* 標題區 */}
         <div className="mb-2 sm:mb-3 text-center flex-shrink-0">
-          {/* 桌面版:精簡三行 */}
           <div className="hidden sm:block">
             <p className="text-xl font-light text-white">
               Aletheia 阿勒希雅 <span className="text-white/50 mx-2">◆</span> <span className="text-white/70">首席AI心理師</span>
@@ -314,15 +346,14 @@ function TherapyContent() {
               訊息數量:{messageCount}/{MESSAGE_LIMIT}
             </p>
           </div>
-          {/* 手機版:只有訊息數量 */}
           <p className="sm:hidden text-[11px] text-white/50">
             {messageCount}/{MESSAGE_LIMIT}
           </p>
         </div>
 
-        {/* 對話框:拉到最大 */}
+        {/* 對話框 */}
         <div className="w-full max-w-3xl flex-1 min-h-0 flex flex-col backdrop-blur-md bg-white/5 rounded-2xl sm:rounded-3xl border border-white/10 shadow-2xl overflow-hidden">
-          {/* AI 回應區 */}
+          {/* 訊息區 */}
           <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-3 sm:space-y-4 min-h-0">
             {messages.length === 0 && (
               <div className="flex justify-start animate-fade-in">
@@ -342,6 +373,9 @@ function TherapyContent() {
                       <div className="pt-2 sm:pt-3 border-t border-white/10">
                         <p className="text-[10px] sm:text-xs text-white/50">
                           💡 限時免費測試:每個對話最多 {MESSAGE_LIMIT} 則訊息(約 30-45 分鐘深度對話)
+                        </p>
+                        <p className="text-[10px] sm:text-xs text-white/40 mt-1">
+                          🎙️ 不想打字？點左下角麥克風直接說話
                         </p>
                       </div>
                     </div>
@@ -404,7 +438,6 @@ function TherapyContent() {
                       <p className="text-[10px] sm:text-xs text-white/60 mb-4 sm:mb-5 leading-relaxed">
                         我已經把這次對話的情感軌跡、核心議題、心理洞察整理成視覺化的心靈地圖,幫助你更清晰地看見自己。
                       </p>
-                      
                       <div className="flex flex-col space-y-2 sm:space-y-3">
                         <button
                           onClick={handleViewMindMap}
@@ -413,7 +446,6 @@ function TherapyContent() {
                           <span>🗺️</span>
                           <span>查看我的心靈地圖</span>
                         </button>
-                        
                         <button
                           onClick={handleClearChat}
                           className="w-full px-4 py-2.5 sm:px-5 sm:py-3 bg-white/10 hover:bg-white/20 rounded-xl text-white/80 text-xs sm:text-sm transition-all"
@@ -421,7 +453,6 @@ function TherapyContent() {
                           🔄 或者,開始新的對話
                         </button>
                       </div>
-
                       <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-white/10">
                         <p className="text-[10px] sm:text-xs text-white/40 text-center">
                           💡 測試期間完全免費 · 你的隱私完全受保護
@@ -439,11 +470,25 @@ function TherapyContent() {
           {/* 輸入區 */}
           <div className="p-2 sm:p-4 border-t border-white/10 backdrop-blur-sm bg-white/5 flex-shrink-0">
             <div className="flex space-x-2 sm:space-x-3">
+              {/* 麥克風按鈕 */}
+              <button
+                onClick={handleVoiceInput}
+                disabled={isLoading || !sessionId || isLimitReached}
+                className={`px-3 py-2 sm:px-4 sm:py-3 rounded-lg sm:rounded-xl border transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  isListening
+                    ? 'bg-red-500/40 border-red-400/50 text-white animate-pulse'
+                    : 'bg-white/10 border-white/10 text-white/60 hover:text-white hover:bg-white/20'
+                }`}
+                title={isListening ? '點擊停止錄音' : '點擊開始語音輸入'}
+              >
+                {isListening ? '🔴' : '🎙️'}
+              </button>
+
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder={isLimitReached ? '已達到訊息上限...' : '在這裡分享你的想法...'}
+                placeholder={isLimitReached ? '已達到訊息上限...' : isListening ? '正在聆聽...' : '在這裡分享你的想法，或點🎙️說話'}
                 className="flex-1 bg-white/10 text-white placeholder-white/40 rounded-lg sm:rounded-xl px-3 py-2 sm:px-4 sm:py-3 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-purple-500/50 resize-none backdrop-blur-sm border border-white/10"
                 rows={1}
                 style={{ maxHeight: '80px' }}
@@ -480,7 +525,6 @@ function TherapyContent() {
         .animate-fade-in {
           animation: fade-in 0.5s ease-out forwards;
         }
-        
         @keyframes slide-up {
           from { opacity: 0; transform: translateY(20px); }
           to { opacity: 1; transform: translateY(0); }
@@ -488,7 +532,6 @@ function TherapyContent() {
         .animate-slide-up {
           animation: slide-up 0.6s ease-out forwards;
         }
-        
         @keyframes slide-down {
           from { opacity: 0; transform: translate(-50%, -20px); }
           to { opacity: 1; transform: translate(-50%, 0); }
@@ -496,7 +539,6 @@ function TherapyContent() {
         .animate-slide-down {
           animation: slide-down 0.6s ease-out forwards;
         }
-        
         @keyframes pulse-subtle {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.8; }
