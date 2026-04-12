@@ -93,8 +93,6 @@ function TherapyContent() {
       return;
     }
     if (isListening) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (recognitionRef.current as any)?.stop();
       recognitionRef.current = null;
       setIsListening(false);
       return;
@@ -102,41 +100,34 @@ function TherapyContent() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const recognition = new SpeechRecognitionAPI() as any;
     recognition.lang = "zh-TW";
-    recognition.continuous = false;
+    recognition.continuous = true;
     recognition.interimResults = false;
-    let silenceTimer: ReturnType<typeof setTimeout> | null = null;
     let accumulatedText = "";
-    const resetSilenceTimer = () => {
+    let silenceTimer: ReturnType<typeof setTimeout> | null = null;
+    recognition.onstart = () => setIsListening(true);
+    recognition.onresult = (event: any) => {
       if (silenceTimer) clearTimeout(silenceTimer);
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          accumulatedText += event.results[i][0].transcript + " ";
+        }
+      }
+      setInput(accumulatedText.trim());
       silenceTimer = setTimeout(() => {
-        recognition.stop();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (recognitionRef.current as any)?.stop();
+        recognitionRef.current = null;
+        setIsListening(false);
       }, 3000);
     };
-    recognition.onstart = () => {
-      setIsListening(true);
-      resetSilenceTimer();
-    };
-    recognition.onresult = (event: any) => {
-      resetSilenceTimer();
-      const transcript = event.results[event.results.length - 1][0].transcript;
-      accumulatedText += transcript + " ";
-      setInput(accumulatedText.trim());
-    };
     recognition.onend = () => {
-      if (silenceTimer) clearTimeout(silenceTimer);
-      if (recognitionRef.current) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        try { (recognitionRef.current as any).start(); resetSilenceTimer(); } catch {}
-      }
+      setIsListening(false);
     };
     recognition.onerror = (e: any) => {
-      if (e.error === "no-speech") {
-        resetSilenceTimer();
-        return;
+      if (e.error !== "no-speech") {
+        recognitionRef.current = null;
+        setIsListening(false);
       }
-      if (silenceTimer) clearTimeout(silenceTimer);
-      recognitionRef.current = null;
-      setIsListening(false);
     };
     recognitionRef.current = recognition;
     recognition.start();
