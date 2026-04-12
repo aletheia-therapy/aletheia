@@ -330,10 +330,13 @@ function TherapyContent() {
               }}
               onKeyPress={handleKeyPress}
               onFocus={() => {
-                setTimeout(() => {
-                  inputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }, 400);
-              }}
+  const isMobile = window.innerWidth < 640;
+  if (isMobile) {
+    setTimeout(() => {
+      inputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }, 400);
+  }
+}}
               placeholder={isLimitReached ? '已達到訊息上限' : isListening ? '正在聆聽...' : '分享你的想法，或點🎙️說話'}
               className="flex-1 bg-white/10 text-white placeholder-white/40 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50 resize-none border border-white/20"
               rows={3}
