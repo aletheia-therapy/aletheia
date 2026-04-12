@@ -106,15 +106,16 @@ function TherapyContent() {
     recognition.interimResults = true;
     recognition.onstart = () => setIsListening(true);
     recognition.onresult = (event: any) => {
-      let transcript = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
+      let finalTranscript = "";
+      let interimTranscript = "";
+      for (let i = 0; i < event.results.length; i++) {
         if (event.results[i].isFinal) {
-          transcript += event.results[i][0].transcript;
+          finalTranscript += event.results[i][0].transcript;
         } else {
-          transcript += event.results[i][0].transcript;
+          interimTranscript += event.results[i][0].transcript;
         }
       }
-      setInput(transcript);
+      setInput(finalTranscript || interimTranscript);
     };
     recognition.onend = () => setIsListening(false);
     recognition.onerror = () => setIsListening(false);
@@ -420,6 +421,8 @@ export default function TherapyPage() {
     </Suspense>
   );
 }
+
+
 
 
 
