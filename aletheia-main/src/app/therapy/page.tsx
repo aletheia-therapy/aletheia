@@ -87,8 +87,8 @@ function TherapyContent() {
 
   const handleVoiceInput = () => {
     const SpeechRecognitionAPI =
-      (window as unknown as Record<string, typeof window.SpeechRecognition>).webkitSpeechRecognition ||
-      (window as unknown as Record<string, typeof window.SpeechRecognition>).SpeechRecognition;
+      (window as unknown as Record<string, unknown>).webkitSpeechRecognition ||
+      (window as unknown as Record<string, unknown>).SpeechRecognition;
 
     if (!SpeechRecognitionAPI) {
       alert('你的瀏覽器不支援語音輸入，建議使用 Chrome');
@@ -418,4 +418,5 @@ export default function TherapyPage() {
     </Suspense>
   );
 }
+
 
