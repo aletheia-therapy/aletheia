@@ -89,36 +89,55 @@ function TherapyContent() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const SpeechRecognitionAPI = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
     if (!SpeechRecognitionAPI) {
-      alert('Please use Chrome for voice input');
+      alert("Please use Chrome for voice input");
       return;
     }
     if (isListening) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (recognitionRef.current as any)?.stop();
+      recognitionRef.current = null;
       setIsListening(false);
       return;
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const recognition = new SpeechRecognitionAPI() as any;
-    recognition.lang = 'zh-TW';
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.interimResults = true;
-    recognition.onstart = () => setIsListening(true);
-    recognition.onresult = (event: any) => {
-      let finalTranscript = "";
-      let interimTranscript = "";
-      for (let i = 0; i < event.results.length; i++) {
-        if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript;
-        } else {
-          interimTranscript += event.results[i][0].transcript;
-        }
-      }
-      setInput(finalTranscript || interimTranscript);
+    recognition.lang = "zh-TW";
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    let silenceTimer: ReturnType<typeof setTimeout> | null = null;
+    let accumulatedText = "";
+    const resetSilenceTimer = () => {
+      if (silenceTimer) clearTimeout(silenceTimer);
+      silenceTimer = setTimeout(() => {
+        recognition.stop();
+      }, 3000);
     };
-    recognition.onend = () => setIsListening(false);
-    recognition.onerror = () => setIsListening(false);
+    recognition.onstart = () => {
+      setIsListening(true);
+      resetSilenceTimer();
+    };
+    recognition.onresult = (event: any) => {
+      resetSilenceTimer();
+      const transcript = event.results[event.results.length - 1][0].transcript;
+      accumulatedText += transcript + " ";
+      setInput(accumulatedText.trim());
+    };
+    recognition.onend = () => {
+      if (silenceTimer) clearTimeout(silenceTimer);
+      if (recognitionRef.current) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        try { (recognitionRef.current as any).start(); resetSilenceTimer(); } catch {}
+      }
+    };
+    recognition.onerror = (e: any) => {
+      if (e.error === "no-speech") {
+        resetSilenceTimer();
+        return;
+      }
+      if (silenceTimer) clearTimeout(silenceTimer);
+      recognitionRef.current = null;
+      setIsListening(false);
+    };
     recognitionRef.current = recognition;
     recognition.start();
   };
