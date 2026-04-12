@@ -82,7 +82,11 @@ function TherapyContent() {
   }, [intent]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    setTimeout(() => {
+      const textarea = document.querySelector("textarea");
+      if (textarea) textarea.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 300);
   }, [messages]);
 
   const handleVoiceInput = () => {
@@ -418,3 +422,4 @@ export default function TherapyPage() {
     </Suspense>
   );
 }
+
