@@ -5,7 +5,6 @@ import { createClient } from '@supabase/supabase-js';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { CosmicBackground } from '@/components/CosmicBackground';
 import { EmotionIndicator } from '@/components/EmotionIndicator';
-import { Footer } from '@/components/Footer';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -41,10 +40,10 @@ function TherapyContent() {
   const [sessionId, setSessionId] = useState<string>('');
   const [currentEmotion, setCurrentEmotion] = useState('平靜');
   const [currentAnalysis, setCurrentAnalysis] = useState<Analysis | null>(null);
-  const [showMindMapHint, setShowMindMapHint] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<unknown>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const finalTextRef = useRef<string>('');
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -57,12 +56,6 @@ function TherapyContent() {
 
   const messageCount = messages.length;
   const isLimitReached = messageCount >= MESSAGE_LIMIT;
-
-  useEffect(() => {
-    if (messageCount >= 8 && messageCount <= 10 && !showMindMapHint) {
-      setTimeout(() => setShowMindMapHint(true), 1000);
-    }
-  }, [messageCount, showMindMapHint]);
 
   useEffect(() => {
     const initSession = async () => {
@@ -82,7 +75,9 @@ function TherapyContent() {
   }, [intent]);
 
   useEffect(() => {
-    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
   }, [messages]);
 
   const handleVoiceInput = () => {
@@ -122,9 +117,7 @@ function TherapyContent() {
         }, 3000);
       };
       r.onend = () => {
-        if ((recognitionRef as any).current) {
-          setTimeout(startRecognition, 50);
-        }
+        if ((recognitionRef as any).current) setTimeout(startRecognition, 50);
       };
       r.onerror = (e: any) => {
         if ((e.error === 'no-speech' || e.error === 'aborted') && (recognitionRef as any).current) {
@@ -217,135 +210,118 @@ function TherapyContent() {
   };
 
   return (
-    <>
-      {/* 全頁背景 */}
-      <div className="fixed inset-0 bg-black z-0">
-        <CosmicBackground emotion={currentEmotion} />
-      </div>
-
+    <div className="min-h-screen bg-black relative">
+      <CosmicBackground emotion={currentEmotion} />
       <EmotionIndicator emotion={currentEmotion} />
 
-      {/* 頂部按鈕 */}
-      <div className="fixed top-2 left-2 right-2 sm:top-4 sm:left-4 sm:right-auto z-30 flex justify-between sm:justify-start sm:space-x-3 gap-1">
-        <button onClick={() => router.push('/')} className="backdrop-blur-md bg-white/10 px-2 py-1 sm:px-4 sm:py-2 rounded-full border border-white/20 text-white/70 hover:text-white hover:bg-white/20 transition-all text-[10px] sm:text-sm">
+      {/* 頂部按鈕 - sticky */}
+      <div className="sticky top-0 z-30 flex justify-between items-center px-2 py-2 backdrop-blur-md bg-black/40 border-b border-white/5">
+        <button onClick={() => router.push('/')} className="bg-white/10 px-3 py-1 rounded-full border border-white/20 text-white/70 text-xs">
           ← 首頁
         </button>
-        <button onClick={handleViewMindMap} disabled={messages.length === 0} className={`backdrop-blur-md px-2 py-1 sm:px-4 sm:py-2 rounded-full border transition-all text-[10px] sm:text-sm ${messages.length >= 5 ? 'bg-gradient-to-r from-purple-500/30 to-blue-500/30 border-purple-400/50 text-white animate-pulse-subtle' : 'bg-white/10 border-white/20 text-white/70'} disabled:opacity-40`}>
-          🗺️ 心靈地圖
-        </button>
-        <button onClick={handleClearChat} disabled={messages.length === 0} className="backdrop-blur-md bg-white/10 px-2 py-1 sm:px-4 sm:py-2 rounded-full border border-white/20 text-white/70 hover:text-white hover:bg-white/20 transition-all text-[10px] sm:text-sm disabled:opacity-40">
-          🔄 對話
-        </button>
+        <span className="text-white/40 text-xs">{messageCount}/{MESSAGE_LIMIT} · {intentNames[intent] || intent}</span>
+        <div className="flex gap-2">
+          <button onClick={handleViewMindMap} disabled={messages.length === 0} className="bg-white/10 px-3 py-1 rounded-full border border-white/20 text-white/70 text-xs disabled:opacity-40">
+            🗺️ 地圖
+          </button>
+          <button onClick={handleClearChat} disabled={messages.length === 0} className="bg-white/10 px-3 py-1 rounded-full border border-white/20 text-white/70 text-xs disabled:opacity-40">
+            🔄
+          </button>
+        </div>
       </div>
 
       {/* 錯誤訊息 */}
       {errorMessage && (
-        <div className="fixed top-12 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-md">
-          <div className="backdrop-blur-md bg-red-500/20 border border-red-400/30 rounded-2xl px-4 py-3 shadow-2xl">
-            <button onClick={() => setErrorMessage(null)} className="absolute top-2 right-3 text-white/50 hover:text-white text-lg">×</button>
-            <div className="flex items-start space-x-3">
-              <div className="text-2xl">😴</div>
-              <div>
-                <p className="text-white/90 text-sm font-medium mb-1">Aletheia 暫時需要休息</p>
-                <p className="text-white/70 text-xs leading-relaxed">{errorMessage}</p>
-              </div>
-            </div>
+        <div className="sticky top-10 z-40 mx-2 mt-2">
+          <div className="bg-red-500/20 border border-red-400/30 rounded-2xl px-4 py-3">
+            <button onClick={() => setErrorMessage(null)} className="float-right text-white/50 text-lg">×</button>
+            <p className="text-white/90 text-sm font-medium">Aletheia 暫時需要休息 😴</p>
+            <p className="text-white/70 text-xs mt-1">{errorMessage}</p>
           </div>
         </div>
       )}
 
-      {/* 訊息捲動區 - 從頂部到輸入框上方 */}
-      <div
-        className="fixed left-0 right-0 z-10 overflow-y-auto"
-        style={{ top: '44px', bottom: '130px' }}
-      >
-        <div className="max-w-3xl mx-auto px-2 sm:px-4 pt-2 pb-4 space-y-3">
-          {/* 標題 */}
-          <div className="text-center py-2">
-            <p className="text-[11px] text-white/40">{messageCount}/{MESSAGE_LIMIT} · {intentNames[intent] || intent}</p>
+      {/* 訊息區 - 正常文件流 */}
+      <div className="relative z-10 max-w-3xl mx-auto px-2 py-4 space-y-3">
+        {messages.length === 0 && (
+          <div className="flex justify-start">
+            <div className="max-w-[90%] bg-gradient-to-r from-purple-500/20 to-blue-500/20 text-white backdrop-blur-sm border border-white/10 px-4 py-4 rounded-2xl">
+              <div className="flex items-start space-x-3">
+                <div className="text-2xl mt-1">✨</div>
+                <div className="flex-1">
+                  <p className="text-sm mb-2 leading-relaxed">你好，我是 Aletheia。</p>
+                  <p className="text-base font-light mb-2 text-white">今天想要跟我談什麼呢？</p>
+                  <p className="text-xs text-white/70 mb-3 leading-relaxed">你可以暢所欲言，這裡是安全的空間。無論是困擾、疑惑，還是單純想要被理解，我都在這裡陪伴你。</p>
+                  <div className="pt-2 border-t border-white/10">
+                    <p className="text-[10px] text-white/50">💡 限時免費測試：每個對話最多 {MESSAGE_LIMIT} 則訊息</p>
+                    <p className="text-[10px] text-white/40 mt-1">🎙️ 不想打字？點麥克風直接說話</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
+        )}
 
-          {messages.length === 0 && (
-            <div className="flex justify-start">
-              <div className="max-w-[90%] bg-gradient-to-r from-purple-500/20 to-blue-500/20 text-white backdrop-blur-sm border border-white/10 px-4 py-4 rounded-2xl">
-                <div className="flex items-start space-x-3">
-                  <div className="text-2xl mt-1">✨</div>
-                  <div className="flex-1">
-                    <p className="text-sm mb-2 leading-relaxed">你好，我是 Aletheia。</p>
-                    <p className="text-base font-light mb-2 text-white">今天想要跟我談什麼呢？</p>
-                    <p className="text-xs text-white/70 mb-3 leading-relaxed">你可以暢所欲言，這裡是安全的空間。無論是困擾、疑惑，還是單純想要被理解，我都在這裡陪伴你。</p>
-                    <div className="pt-2 border-t border-white/10">
-                      <p className="text-[10px] text-white/50">💡 限時免費測試：每個對話最多 {MESSAGE_LIMIT} 則訊息</p>
-                      <p className="text-[10px] text-white/40 mt-1">🎙️ 不想打字？點麥克風直接說話</p>
-                    </div>
+        {messages.map((msg) => (
+          <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`max-w-[85%] px-4 py-2.5 rounded-2xl ${msg.role === 'user' ? 'bg-white/15 text-white' : 'bg-gradient-to-r from-purple-500/20 to-blue-500/20 text-white backdrop-blur-sm border border-white/10'}`}>
+              <p className="whitespace-pre-wrap leading-relaxed text-sm">{msg.content}</p>
+              <span className="text-[10px] text-white/40 mt-1 block">{msg.timestamp.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+          </div>
+        ))}
+
+        {isLoading && (
+          <div className="flex justify-start">
+            <div className="bg-gradient-to-r from-purple-500/20 to-blue-500/20 backdrop-blur-sm border border-white/10 px-5 py-3 rounded-2xl">
+              <div className="flex space-x-2">
+                <div className="w-2 h-2 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '0s' }}></div>
+                <div className="w-2 h-2 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                <div className="w-2 h-2 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {isLimitReached && (
+          <div className="flex justify-start">
+            <div className="max-w-[90%] bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-white backdrop-blur-sm border border-amber-400/30 px-4 py-4 rounded-2xl">
+              <div className="flex items-start space-x-3">
+                <div className="text-2xl mt-1">✨</div>
+                <div className="flex-1">
+                  <p className="text-sm mb-2 leading-relaxed">我們的對話到這裡告一段落了。</p>
+                  <p className="text-xs text-white/80 mb-3 leading-relaxed">在這次深度對話中，我看見了你的勇氣與真誠。</p>
+                  <p className="text-sm font-light mb-3 text-white">💎 想看看我為你整理的心靈地圖嗎？</p>
+                  <div className="flex flex-col space-y-2">
+                    <button onClick={handleViewMindMap} className="w-full px-4 py-2.5 bg-gradient-to-r from-purple-500 to-blue-500 rounded-xl text-white text-sm font-medium flex items-center justify-center space-x-2">
+                      <span>🗺️</span><span>查看我的心靈地圖</span>
+                    </button>
+                    <button onClick={handleClearChat} className="w-full px-4 py-2.5 bg-white/10 rounded-xl text-white/80 text-xs">
+                      🔄 開始新的對話
+                    </button>
                   </div>
                 </div>
               </div>
             </div>
-          )}
+          </div>
+        )}
 
-          {messages.map((msg, index) => (
-            <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`} style={{ animationDelay: `${index * 0.05}s` }}>
-              <div className={`max-w-[85%] px-4 py-2.5 rounded-2xl ${msg.role === 'user' ? 'bg-white/15 text-white' : 'bg-gradient-to-r from-purple-500/20 to-blue-500/20 text-white backdrop-blur-sm border border-white/10'}`}>
-                <p className="whitespace-pre-wrap leading-relaxed text-sm">{msg.content}</p>
-                <span className="text-[10px] text-white/40 mt-1 block">{msg.timestamp.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}</span>
-              </div>
-            </div>
-          ))}
-
-          {isLoading && (
-            <div className="flex justify-start">
-              <div className="bg-gradient-to-r from-purple-500/20 to-blue-500/20 backdrop-blur-sm border border-white/10 px-5 py-3 rounded-2xl">
-                <div className="flex space-x-2">
-                  <div className="w-2 h-2 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '0s' }}></div>
-                  <div className="w-2 h-2 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                  <div className="w-2 h-2 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {isLimitReached && (
-            <div className="flex justify-start">
-              <div className="max-w-[90%] bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-white backdrop-blur-sm border border-amber-400/30 px-4 py-4 rounded-2xl">
-                <div className="flex items-start space-x-3">
-                  <div className="text-2xl mt-1">✨</div>
-                  <div className="flex-1">
-                    <p className="text-sm mb-2 leading-relaxed">我們的對話到這裡告一段落了。</p>
-                    <p className="text-xs text-white/80 mb-3 leading-relaxed">在這次深度對話中，我看見了你的勇氣與真誠。每一個想法、每一份感受，都是你內心宇宙的一部分。</p>
-                    <p className="text-sm font-light mb-3 text-white">💎 想看看我為你整理的心靈地圖嗎？</p>
-                    <div className="flex flex-col space-y-2">
-                      <button onClick={handleViewMindMap} className="w-full px-4 py-2.5 bg-gradient-to-r from-purple-500 to-blue-500 rounded-xl text-white text-sm font-medium flex items-center justify-center space-x-2">
-                        <span>🗺️</span><span>查看我的心靈地圖</span>
-                      </button>
-                      <button onClick={handleClearChat} className="w-full px-4 py-2.5 bg-white/10 rounded-xl text-white/80 text-xs">
-                        🔄 開始新的對話
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
+        <div ref={messagesEndRef} />
       </div>
 
-      {/* 輸入區 - 永遠固定在底部 */}
-      <div
-        className="fixed bottom-0 left-0 right-0 z-30 border-t border-white/10 backdrop-blur-xl bg-black/70 px-2 sm:px-4 pt-2 pb-4"
-      >
+      {/* 輸入區 - 正常文件流最底部，鍵盤彈出時瀏覽器自動捲到這裡 */}
+      <div className="relative z-20 border-t border-white/10 backdrop-blur-xl bg-black/80 px-2 pt-2 pb-6">
         <div className="max-w-3xl mx-auto">
           <div className="flex space-x-2 items-end">
             <button
               onClick={handleVoiceInput}
               disabled={isLoading || !sessionId || isLimitReached}
-              className={`px-3 py-2 rounded-xl border transition-all flex-shrink-0 disabled:opacity-50 ${isListening ? 'bg-red-500/40 border-red-400/50 text-white animate-pulse' : 'bg-white/10 border-white/20 text-white/60 hover:text-white'}`}
+              className={`px-3 py-2 rounded-xl border transition-all flex-shrink-0 disabled:opacity-50 ${isListening ? 'bg-red-500/40 border-red-400/50 text-white animate-pulse' : 'bg-white/10 border-white/20 text-white/60'}`}
             >
               {isListening ? '🔴' : '🎙️'}
             </button>
             <textarea
+              ref={inputRef}
               value={input}
               onChange={(e) => {
                 setInput(e.target.value);
@@ -354,7 +330,9 @@ function TherapyContent() {
               }}
               onKeyPress={handleKeyPress}
               onFocus={() => {
-                setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 400);
+                setTimeout(() => {
+                  inputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 400);
               }}
               placeholder={isLimitReached ? '已達到訊息上限' : isListening ? '正在聆聽...' : '分享你的想法，或點🎙️說話'}
               className="flex-1 bg-white/10 text-white placeholder-white/40 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50 resize-none border border-white/20"
@@ -365,7 +343,7 @@ function TherapyContent() {
             <button
               onClick={handleSend}
               disabled={isLoading || !input.trim() || !sessionId || isLimitReached}
-              className="px-3 py-2 sm:px-5 sm:py-3 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-all flex-shrink-0"
+              className="px-3 py-2 sm:px-5 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-all flex-shrink-0"
             >
               {isLoading ? '...' : '發送'}
             </button>
@@ -386,7 +364,7 @@ function TherapyContent() {
         }
         .animate-pulse-subtle { animation: pulse-subtle 3s ease-in-out infinite; }
       `}</style>
-    </>
+    </div>
   );
 }
 
