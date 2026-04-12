@@ -101,7 +101,8 @@ function TherapyContent() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const recognition = new SpeechRecognitionAPI() as any;
     recognition.lang = 'zh-TW';
-    recognition.continuous = false;
+    recognition.continuous = true;
+    recognition.interimResults = true;
     recognition.interimResults = true;
     recognition.onstart = () => setIsListening(true);
     recognition.onresult = (event: any) => {
@@ -110,7 +111,11 @@ function TherapyContent() {
         .join('');
       setInput(transcript);
     };
-    recognition.onend = () => setIsListening(false);
+    recognition.onend = () => {
+      if (recognitionRef.current) {
+        try { (recognitionRef.current as any).start(); } catch {}
+      }
+    };
     recognition.onerror = () => setIsListening(false);
     recognitionRef.current = recognition;
     recognition.start();
@@ -414,6 +419,8 @@ export default function TherapyPage() {
     </Suspense>
   );
 }
+
+
 
 
 
