@@ -111,11 +111,7 @@ function TherapyContent() {
         .join('');
       setInput(transcript);
     };
-    recognition.onend = () => {
-      if (recognitionRef.current) {
-        try { (recognitionRef.current as any).start(); } catch {}
-      }
-    };
+    recognition.onend = () => setIsListening(false);
     recognition.onerror = () => setIsListening(false);
     recognitionRef.current = recognition;
     recognition.start();
@@ -419,6 +415,7 @@ export default function TherapyPage() {
     </Suspense>
   );
 }
+
 
 
 
