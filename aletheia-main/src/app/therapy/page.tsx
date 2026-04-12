@@ -46,6 +46,8 @@ function TherapyContent() {
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<unknown>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const finalTextRef = useRef<string>('');
+  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const intentNames: Record<string, string> = {
     explore: '探索',
@@ -69,13 +71,11 @@ function TherapyContent() {
         .insert({ intent_type: intent, status: 'active' })
         .select()
         .single();
-
       if (data) {
         setSessionId(data.id);
       } else {
         console.error('會話建立失敗:', error);
-        const tempId = `temp-${Date.now()}`;
-        setSessionId(tempId);
+        setSessionId(`temp-${Date.now()}`);
       }
     };
     initSession();
@@ -89,36 +89,38 @@ function TherapyContent() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const SpeechRecognitionAPI = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
     if (!SpeechRecognitionAPI) {
-      alert("Please use Chrome for voice input");
+      alert('Please use Chrome for voice input');
       return;
     }
     if (isListening) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (recognitionRef.current as any)?.stop();
       recognitionRef.current = null;
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
       setIsListening(false);
       return;
     }
+    finalTextRef.current = '';
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const recognition = new SpeechRecognitionAPI() as any;
-    recognition.lang = "zh-TW";
+    recognition.lang = 'zh-TW';
     recognition.continuous = true;
     recognition.interimResults = true;
-    let accumulatedText = "";
-    let silenceTimer: ReturnType<typeof setTimeout> | null = null;
     recognition.onstart = () => setIsListening(true);
     recognition.onresult = (event: any) => {
-      if (silenceTimer) clearTimeout(silenceTimer);
-      let finalText = "";
-      let interimText = "";
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+      let newFinal = '';
+      let interim = '';
       for (let i = 0; i < event.results.length; i++) {
         if (event.results[i].isFinal) {
-          finalText += event.results[i][0].transcript + " ";
+          newFinal += event.results[i][0].transcript;
         } else {
-          interimText += event.results[i][0].transcript;
+          interim += event.results[i][0].transcript;
         }
       }
-      accumulatedText = finalText;
-      setInput((finalText + interimText).trim());
-      silenceTimer = setTimeout(() => {
+      finalTextRef.current = newFinal;
+      setInput((newFinal + (interim ? ' ' + interim : '')).trim());
+      silenceTimerRef.current = setTimeout(() => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (recognitionRef.current as any)?.stop();
         recognitionRef.current = null;
@@ -127,9 +129,10 @@ function TherapyContent() {
     };
     recognition.onend = () => {
       setIsListening(false);
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
     };
     recognition.onerror = (e: any) => {
-      if (e.error !== "no-speech") {
+      if (e.error !== 'no-speech') {
         recognitionRef.current = null;
         setIsListening(false);
       }
@@ -140,44 +143,36 @@ function TherapyContent() {
 
   const handleSend = async () => {
     if (!input.trim() || !sessionId || isLimitReached) return;
-
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
       content: input,
       timestamp: new Date(),
     };
-
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
     setErrorMessage(null);
-
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: input, sessionId, intent }),
       });
-
       const data = await response.json();
       if (data.error) throw new Error(data.error);
-
       if (data.analysis) {
         setCurrentEmotion(data.analysis.emotion);
         setCurrentAnalysis(data.analysis);
       }
-
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: data.message,
         timestamp: new Date(),
       };
-
       const updatedMessages = [...messages, userMessage, aiMessage];
       setMessages(prev => [...prev, aiMessage]);
-
       if (updatedMessages.length >= MESSAGE_LIMIT) {
         setTimeout(() => {
           fetch('/api/reflect', {
@@ -225,7 +220,6 @@ function TherapyContent() {
     <div className="relative min-h-screen h-screen overflow-hidden bg-black flex flex-col">
       <CosmicBackground emotion={currentEmotion} />
       <EmotionIndicator emotion={currentEmotion} />
-
       <div className="absolute top-2 left-2 right-2 sm:top-6 sm:left-6 sm:right-auto z-20 flex justify-between sm:justify-start sm:space-x-4 gap-1">
         <button onClick={() => router.push('/')} className="backdrop-blur-md bg-white/5 px-2 py-1 sm:px-4 sm:py-2 rounded-full border border-white/10 text-white/60 hover:text-white hover:bg-white/10 transition-all text-[10px] sm:text-sm">
           ← <span className="hidden sm:inline">返回</span>首頁
@@ -237,7 +231,6 @@ function TherapyContent() {
           🔄 <span className="hidden sm:inline">清除</span>對話
         </button>
       </div>
-
       {errorMessage && (
         <div className="fixed top-14 sm:top-24 left-1/2 transform -translate-x-1/2 z-40 animate-slide-down w-[92%] sm:w-auto">
           <div className="backdrop-blur-md bg-gradient-to-r from-red-500/20 to-orange-500/20 border border-red-400/30 rounded-2xl px-4 py-3 sm:px-6 sm:py-4 shadow-2xl max-w-md">
@@ -252,7 +245,6 @@ function TherapyContent() {
           </div>
         </div>
       )}
-
       {currentAnalysis && (
         <div className="hidden sm:block fixed bottom-14 left-4 z-20 animate-fade-in">
           <div className="backdrop-blur-md bg-white/5 border border-white/10 rounded-2xl px-4 py-3 shadow-2xl max-w-xs">
@@ -267,7 +259,6 @@ function TherapyContent() {
           </div>
         </div>
       )}
-
       {messageCount >= 2 && !isLimitReached && (
         <div className="hidden sm:block fixed bottom-14 right-4 z-20 animate-fade-in">
           <div className="backdrop-blur-md bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-400/20 rounded-2xl px-4 py-3 shadow-2xl max-w-xs">
@@ -282,7 +273,6 @@ function TherapyContent() {
           </div>
         </div>
       )}
-
       <div className="relative z-10 flex-1 flex flex-col items-center px-2 sm:px-4 pt-10 sm:pt-16 pb-1 sm:pb-2 min-h-0">
         <div className="mb-2 sm:mb-3 text-center flex-shrink-0">
           <div className="hidden sm:block">
@@ -292,7 +282,6 @@ function TherapyContent() {
           </div>
           <p className="sm:hidden text-[11px] text-white/50">{messageCount}/{MESSAGE_LIMIT}</p>
         </div>
-
         <div className="w-full max-w-3xl flex-1 min-h-0 flex flex-col backdrop-blur-md bg-white/5 rounded-2xl sm:rounded-3xl border border-white/10 shadow-2xl overflow-hidden">
           <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-3 sm:space-y-4 min-h-0">
             {messages.length === 0 && (
@@ -306,14 +295,13 @@ function TherapyContent() {
                       <p className="text-xs sm:text-sm text-white/70 mb-3 sm:mb-4 leading-relaxed">你可以暢所欲言，這裡是安全的空間。無論是困擾、疑惑，還是單純想要被理解，我都在這裡陪伴你。</p>
                       <div className="pt-2 sm:pt-3 border-t border-white/10">
                         <p className="text-[10px] sm:text-xs text-white/50">💡 限時免費測試：每個對話最多 {MESSAGE_LIMIT} 則訊息</p>
-                        <p className="text-[10px] sm:text-xs text-white/40 mt-1">🎙️ 不想打字？點左下角麥克風直接說話</p>
+                        <p className="text-[10px] sm:text-xs text-white/40 mt-1">🎙️ 不想打字？點麥克風直接說話，靜音 3 秒後自動停止</p>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
             )}
-
             {messages.map((msg, index) => (
               <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`} style={{ animationDelay: `${index * 0.1}s` }}>
                 <div className={`max-w-[85%] sm:max-w-[80%] px-4 py-2.5 sm:px-5 sm:py-3 rounded-2xl ${msg.role === 'user' ? 'bg-white/10 text-white backdrop-blur-sm' : 'bg-gradient-to-r from-purple-500/20 to-blue-500/20 text-white backdrop-blur-sm border border-white/10'}`}>
@@ -322,7 +310,6 @@ function TherapyContent() {
                 </div>
               </div>
             ))}
-
             {isLoading && (
               <div className="flex justify-start animate-fade-in">
                 <div className="bg-gradient-to-r from-purple-500/20 to-blue-500/20 text-white backdrop-blur-sm border border-white/10 px-5 py-3 rounded-2xl">
@@ -334,7 +321,6 @@ function TherapyContent() {
                 </div>
               </div>
             )}
-
             {isLimitReached && (
               <div className="flex justify-start animate-fade-in">
                 <div className="max-w-[90%] sm:max-w-[85%] bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-white backdrop-blur-sm border border-amber-400/30 px-4 py-4 sm:px-6 sm:py-6 rounded-2xl">
@@ -360,10 +346,8 @@ function TherapyContent() {
                 </div>
               </div>
             )}
-
             <div ref={messagesEndRef} />
           </div>
-
           <div className="p-2 sm:p-4 border-t border-white/10 backdrop-blur-sm bg-white/5 flex-shrink-0">
             <div className="flex space-x-2 sm:space-x-3">
               <button
@@ -401,9 +385,7 @@ function TherapyContent() {
           </div>
         </div>
       </div>
-
       <Footer />
-
       <style jsx>{`
         @keyframes fade-in {
           from { opacity: 0; transform: translateY(10px); }
@@ -436,14 +418,3 @@ export default function TherapyPage() {
     </Suspense>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
