@@ -101,18 +101,23 @@ function TherapyContent() {
     const recognition = new SpeechRecognitionAPI() as any;
     recognition.lang = "zh-TW";
     recognition.continuous = true;
-    recognition.interimResults = false;
+    recognition.interimResults = true;
     let accumulatedText = "";
     let silenceTimer: ReturnType<typeof setTimeout> | null = null;
     recognition.onstart = () => setIsListening(true);
     recognition.onresult = (event: any) => {
       if (silenceTimer) clearTimeout(silenceTimer);
-      for (let i = event.resultIndex; i < event.results.length; i++) {
+      let finalText = "";
+      let interimText = "";
+      for (let i = 0; i < event.results.length; i++) {
         if (event.results[i].isFinal) {
-          accumulatedText += event.results[i][0].transcript + " ";
+          finalText += event.results[i][0].transcript + " ";
+        } else {
+          interimText += event.results[i][0].transcript;
         }
       }
-      setInput(accumulatedText.trim());
+      accumulatedText = finalText;
+      setInput((finalText + interimText).trim());
       silenceTimer = setTimeout(() => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (recognitionRef.current as any)?.stop();
@@ -431,6 +436,8 @@ export default function TherapyPage() {
     </Suspense>
   );
 }
+
+
 
 
 
