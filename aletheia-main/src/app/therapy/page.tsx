@@ -44,7 +44,7 @@ function TherapyContent() {
   const [showMindMapHint, setShowMindMapHint] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
-  const recognitionRef = useRef<InstanceType<typeof window.SpeechRecognition> | null>(null);
+  const recognitionRef = useRef<unknown>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const intentNames: Record<string, string> = {
