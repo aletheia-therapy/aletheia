@@ -106,9 +106,14 @@ function TherapyContent() {
     recognition.interimResults = true;
     recognition.onstart = () => setIsListening(true);
     recognition.onresult = (event: any) => {
-      const transcript = Array.from(event.results as any[])
-        .map((result: any) => result[0].transcript)
-        .join('');
+      let transcript = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          transcript += event.results[i][0].transcript;
+        } else {
+          transcript += event.results[i][0].transcript;
+        }
+      }
       setInput(transcript);
     };
     recognition.onend = () => setIsListening(false);
@@ -415,6 +420,7 @@ export default function TherapyPage() {
     </Suspense>
   );
 }
+
 
 
 
