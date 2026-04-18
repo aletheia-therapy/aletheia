@@ -43,7 +43,13 @@ function TherapyContent() {
   const [currentAnalysis, setCurrentAnalysis] = useState<Analysis | null>(null);
   const [showMindMapHint, setShowMindMapHint] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const inputAreaRef = useRef<HTMLDivElement>(null);
+
+  // Fixed input bar: bottom offset (= keyboard height on mobile)
+  const [inputBottom, setInputBottom] = useState(0);
+  // Height of the input bar element, used to add equivalent padding-bottom to scroll area
+  const [inputBarHeight, setInputBarHeight] = useState(0);
+
+  const inputBarRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const intentNames: Record<string, string> = {
@@ -86,15 +92,51 @@ function TherapyContent() {
     initSession();
   }, [intent]);
 
-  // 新訊息後捲到輸入框（確保輸入框可見）
+  // 新訊息送出後捲到頁面最底，確保輸入框和最新訊息都可見
   useEffect(() => {
-    inputAreaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    setTimeout(() => {
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    }, 50);
   }, [messages]);
 
-  // 鍵盤彈出時，瀏覽器會自動捲到 focused 元素；這裡補一個 scrollIntoView 作為保險
+  // visualViewport：監聽鍵盤彈出，動態調整 fixed 輸入框的 bottom 值
+  // bottom = window.innerHeight - visualViewport.height - visualViewport.offsetTop
+  // 這個值等於鍵盤高度，讓輸入框剛好浮在鍵盤上方
+  useEffect(() => {
+    const update = () => {
+      const vp = window.visualViewport;
+      if (!vp) return;
+
+      const keyboardHeight = Math.max(0, window.innerHeight - vp.height - vp.offsetTop);
+      setInputBottom(keyboardHeight);
+
+      if (inputBarRef.current) {
+        setInputBarHeight(inputBarRef.current.offsetHeight);
+      }
+    };
+
+    const vp = window.visualViewport;
+    if (vp) {
+      vp.addEventListener('resize', update);
+      vp.addEventListener('scroll', update);
+    }
+
+    // 初始測量
+    const timer = setTimeout(update, 0);
+
+    return () => {
+      if (vp) {
+        vp.removeEventListener('resize', update);
+        vp.removeEventListener('scroll', update);
+      }
+      clearTimeout(timer);
+    };
+  }, []);
+
+  // 點擊輸入框時，額外捲到頁面底部（補 Facebook 瀏覽器的不標準行為）
   const handleTextareaFocus = () => {
     setTimeout(() => {
-      textareaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     }, 350);
   };
 
@@ -217,12 +259,15 @@ function TherapyContent() {
     }
   };
 
+  // 捲動區需要的 padding-bottom = 輸入框高度 + 鍵盤高度，避免訊息被遮住
+  const scrollPaddingBottom = inputBarHeight + inputBottom + 16;
+
   return (
     <div className="relative min-h-screen bg-black">
       <CosmicBackground emotion={currentEmotion} />
       <EmotionIndicator emotion={currentEmotion} />
 
-      {/* 頂部按鈕列：sticky，鍵盤彈出時仍可見 */}
+      {/* 頂部按鈕列 */}
       <div className="sticky top-0 z-20 flex justify-between sm:justify-start sm:space-x-4 gap-1 px-2 py-2 sm:px-6 sm:py-4 backdrop-blur-md bg-black/30">
         <button
           onClick={() => router.push('/')}
@@ -308,10 +353,13 @@ function TherapyContent() {
         </div>
       )}
 
-      {/* 主內容區：正常文件流，可往下捲動 */}
-      <div className="relative z-10 px-2 sm:px-4 pb-6">
+      {/* 主內容捲動區：padding-bottom 預留 fixed 輸入框 + 鍵盤的空間 */}
+      <div
+        className="relative z-10 px-2 sm:px-4 pt-2 sm:pt-4"
+        style={{ paddingBottom: scrollPaddingBottom }}
+      >
         {/* 標題區 */}
-        <div className="py-2 sm:py-4 text-center">
+        <div className="py-2 sm:py-3 text-center">
           <div className="hidden sm:block">
             <p className="text-xl font-light text-white">
               Aletheia 阿勒希雅 <span className="text-white/50 mx-2">◆</span> <span className="text-white/70">首席AI心理師</span>
@@ -328,9 +376,8 @@ function TherapyContent() {
           </p>
         </div>
 
-        {/* 對話框：正常流，不固定高度 */}
+        {/* 訊息卡片：僅顯示訊息，輸入框已移至 fixed */}
         <div className="w-full max-w-3xl mx-auto backdrop-blur-md bg-white/5 rounded-2xl sm:rounded-3xl border border-white/10 shadow-2xl overflow-hidden">
-          {/* 訊息區：正常往下排列 */}
           <div className="p-3 sm:p-6 space-y-3 sm:space-y-4">
             {messages.length === 0 && (
               <div className="flex justify-start animate-fade-in">
@@ -441,44 +488,52 @@ function TherapyContent() {
               </div>
             )}
           </div>
-
-          {/* 輸入區：正常文件流，位於頁面最底部 */}
-          <div ref={inputAreaRef} className="p-2 sm:p-4 border-t border-white/10 backdrop-blur-sm bg-white/5">
-            <div className="flex space-x-2 sm:space-x-3">
-              <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyPress={handleKeyPress}
-                onFocus={handleTextareaFocus}
-                placeholder={isLimitReached ? '已達到訊息上限...' : '在這裡分享你的想法...'}
-                className="flex-1 bg-white/10 text-white placeholder-white/40 rounded-lg sm:rounded-xl px-3 py-2 sm:px-4 sm:py-3 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-purple-500/50 resize-none backdrop-blur-sm border border-white/10"
-                rows={1}
-                style={{ maxHeight: '80px' }}
-                disabled={isLoading || !sessionId || isLimitReached}
-              />
-              <button
-                onClick={handleSend}
-                disabled={isLoading || !input.trim() || !sessionId || isLimitReached}
-                className="px-3 py-2 sm:px-6 sm:py-3 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-lg sm:rounded-xl text-sm sm:text-base font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex-shrink-0"
-              >
-                {isLoading ? '...' : '發送'}
-              </button>
-            </div>
-
-            {!isLimitReached && messageCount > 0 && (
-              <div className="mt-1 sm:mt-2 text-[10px] sm:text-xs text-white/40 text-center">
-                還剩 {MESSAGE_LIMIT - messageCount} 則訊息
-                {messageCount >= MESSAGE_LIMIT - 3 && (
-                  <span className="text-yellow-400/60 ml-2">⚠️ 快到達上限了</span>
-                )}
-              </div>
-            )}
-          </div>
         </div>
+
+        <Footer />
       </div>
 
-      <Footer />
+      {/* ===== Fixed 輸入框：永遠浮在鍵盤上方 =====
+          bottom = window.innerHeight - visualViewport.height - visualViewport.offsetTop
+          鍵盤沒彈出時 bottom = 0，鍵盤彈出時 bottom = 鍵盤高度 */}
+      <div
+        ref={inputBarRef}
+        className="fixed left-0 right-0 z-30 border-t border-white/10 backdrop-blur-md bg-black/80"
+        style={{ bottom: inputBottom }}
+      >
+        <div className="max-w-3xl mx-auto px-2 sm:px-4 py-2 sm:py-4">
+          <div className="flex space-x-2 sm:space-x-3">
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyPress={handleKeyPress}
+              onFocus={handleTextareaFocus}
+              placeholder={isLimitReached ? '已達到訊息上限...' : '在這裡分享你的想法...'}
+              className="flex-1 bg-white/10 text-white placeholder-white/40 rounded-lg sm:rounded-xl px-3 py-2 sm:px-4 sm:py-3 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-purple-500/50 resize-none backdrop-blur-sm border border-white/10"
+              rows={1}
+              style={{ maxHeight: '80px' }}
+              disabled={isLoading || !sessionId || isLimitReached}
+            />
+            <button
+              onClick={handleSend}
+              disabled={isLoading || !input.trim() || !sessionId || isLimitReached}
+              className="px-3 py-2 sm:px-6 sm:py-3 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-lg sm:rounded-xl text-sm sm:text-base font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex-shrink-0"
+            >
+              {isLoading ? '...' : '發送'}
+            </button>
+          </div>
+
+          {!isLimitReached && messageCount > 0 && (
+            <div className="mt-1 sm:mt-2 text-[10px] sm:text-xs text-white/40 text-center">
+              還剩 {MESSAGE_LIMIT - messageCount} 則訊息
+              {messageCount >= MESSAGE_LIMIT - 3 && (
+                <span className="text-yellow-400/60 ml-2">⚠️ 快到達上限了</span>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
 
       <style jsx>{`
         @keyframes fade-in {
