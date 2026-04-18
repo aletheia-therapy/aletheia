@@ -43,7 +43,8 @@ function TherapyContent() {
   const [currentAnalysis, setCurrentAnalysis] = useState<Analysis | null>(null);
   const [showMindMapHint, setShowMindMapHint] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputAreaRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const intentNames: Record<string, string> = {
     explore: '探索',
@@ -85,9 +86,17 @@ function TherapyContent() {
     initSession();
   }, [intent]);
 
+  // 新訊息後捲到輸入框（確保輸入框可見）
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    inputAreaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages]);
+
+  // 鍵盤彈出時，瀏覽器會自動捲到 focused 元素；這裡補一個 scrollIntoView 作為保險
+  const handleTextareaFocus = () => {
+    setTimeout(() => {
+      textareaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }, 350);
+  };
 
   const handleSend = async () => {
     if (!input.trim() || !sessionId || isLimitReached) return;
@@ -134,53 +143,54 @@ function TherapyContent() {
         timestamp: new Date(),
       };
 
-      // 🧠 檢查是否達到對話上限，觸發背景反思
-      const updatedMessages = [...messages, userMessage, aiMessage];
-      setMessages(prev => [...prev, aiMessage]);
+      setMessages(prev => {
+        const updatedMessages = [...prev, aiMessage];
 
-      if (updatedMessages.length >= MESSAGE_LIMIT) {
-        console.log('🧠 對話達到上限，觸發背景自我反思...');
-        
-        // 使用 setTimeout 讓反思在下一個 tick 執行，不阻塞 UI
-        setTimeout(() => {
-          fetch('/api/reflect', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              sessionId: sessionId,
-              messages: updatedMessages.map(m => ({
-                role: m.role,
-                content: m.content,
-              })),
-            }),
-          })
-            .then((res) => res.json())
-            .then((data) => {
-              if (data.success) {
-                console.log(
-                  `✨ 反思完成 | 品質:${data.reflection.quality}/10 | ` +
-                  `新增優質回應:${data.reflection.goodResponsesCount} 筆 | ` +
-                  `未知概念:${data.reflection.unknownConceptsCount} 個 | ` +
-                  `成本:NT$${(data.cost * 1).toFixed(4)}`
-                );
-              } else {
-                console.error('反思失敗:', data.error);
-              }
+        if (updatedMessages.length >= MESSAGE_LIMIT) {
+          console.log('🧠 對話達到上限，觸發背景自我反思...');
+
+          setTimeout(() => {
+            fetch('/api/reflect', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                sessionId: sessionId,
+                messages: updatedMessages.map(m => ({
+                  role: m.role,
+                  content: m.content,
+                })),
+              }),
             })
-            .catch((err) => {
-              console.error('反思 API 呼叫失敗:', err);
-            });
-        }, 1000);
-      }
+              .then(res => res.json())
+              .then(data => {
+                if (data.success) {
+                  console.log(
+                    `✨ 反思完成 | 品質:${data.reflection.quality}/10 | ` +
+                    `優質回應:${data.reflection.goodResponsesCount} 筆 | ` +
+                    `未知概念:${data.reflection.unknownConceptsCount} 個 | ` +
+                    `成本:NT$${data.cost?.toFixed(4) || '?'}`
+                  );
+                } else {
+                  console.error('反思失敗:', data.error);
+                }
+              })
+              .catch(err => {
+                console.error('反思 API 呼叫失敗:', err);
+              });
+          }, 1000);
+        }
+
+        return updatedMessages;
+      });
 
     } catch (error) {
       console.error('❌ 發送訊息失敗:', error);
-      
+
       setErrorMessage('抱歉,Aletheia 暫時需要休息一下 😴 請稍後再試,或重新整理頁面。');
-      
+
       setMessages(prev => prev.slice(0, -1));
       setInput(userMessage.content);
-      
+
     } finally {
       setIsLoading(false);
     }
@@ -208,12 +218,12 @@ function TherapyContent() {
   };
 
   return (
-    <div className="relative min-h-screen h-screen overflow-hidden bg-black flex flex-col">
+    <div className="relative min-h-screen bg-black">
       <CosmicBackground emotion={currentEmotion} />
       <EmotionIndicator emotion={currentEmotion} />
 
-      {/* 頂部按鈕列 */}
-      <div className="absolute top-2 left-2 right-2 sm:top-6 sm:left-6 sm:right-auto z-20 flex justify-between sm:justify-start sm:space-x-4 gap-1">
+      {/* 頂部按鈕列：sticky，鍵盤彈出時仍可見 */}
+      <div className="sticky top-0 z-20 flex justify-between sm:justify-start sm:space-x-4 gap-1 px-2 py-2 sm:px-6 sm:py-4 backdrop-blur-md bg-black/30">
         <button
           onClick={() => router.push('/')}
           className="backdrop-blur-md bg-white/5 px-2 py-1 sm:px-4 sm:py-2 rounded-full border border-white/10 text-white/60 hover:text-white hover:bg-white/10 transition-all text-[10px] sm:text-sm"
@@ -261,7 +271,7 @@ function TherapyContent() {
         </div>
       )}
 
-      {/* 📊 左下角:情感分析浮動面板(桌面版) */}
+      {/* 📊 左下角：情感分析浮動面板（桌面版） */}
       {currentAnalysis && (
         <div className="hidden sm:block fixed bottom-14 left-4 z-20 animate-fade-in">
           <div className="backdrop-blur-md bg-white/5 border border-white/10 rounded-2xl px-4 py-3 shadow-2xl max-w-xs">
@@ -277,7 +287,7 @@ function TherapyContent() {
         </div>
       )}
 
-      {/* 🗺️ 右下角:心靈地圖提示浮動面板(桌面版) */}
+      {/* 🗺️ 右下角：心靈地圖提示浮動面板（桌面版） */}
       {messageCount >= 2 && !isLimitReached && (
         <div className="hidden sm:block fixed bottom-14 right-4 z-20 animate-fade-in">
           <div className="backdrop-blur-md bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-400/20 rounded-2xl px-4 py-3 shadow-2xl max-w-xs">
@@ -298,11 +308,10 @@ function TherapyContent() {
         </div>
       )}
 
-      {/* 主內容區 */}
-      <div className="relative z-10 flex-1 flex flex-col items-center px-2 sm:px-4 pt-10 sm:pt-16 pb-1 sm:pb-2 min-h-0">
+      {/* 主內容區：正常文件流，可往下捲動 */}
+      <div className="relative z-10 px-2 sm:px-4 pb-6">
         {/* 標題區 */}
-        <div className="mb-2 sm:mb-3 text-center flex-shrink-0">
-          {/* 桌面版:精簡三行 */}
+        <div className="py-2 sm:py-4 text-center">
           <div className="hidden sm:block">
             <p className="text-xl font-light text-white">
               Aletheia 阿勒希雅 <span className="text-white/50 mx-2">◆</span> <span className="text-white/70">首席AI心理師</span>
@@ -314,16 +323,15 @@ function TherapyContent() {
               訊息數量:{messageCount}/{MESSAGE_LIMIT}
             </p>
           </div>
-          {/* 手機版:只有訊息數量 */}
           <p className="sm:hidden text-[11px] text-white/50">
             {messageCount}/{MESSAGE_LIMIT}
           </p>
         </div>
 
-        {/* 對話框:拉到最大 */}
-        <div className="w-full max-w-3xl flex-1 min-h-0 flex flex-col backdrop-blur-md bg-white/5 rounded-2xl sm:rounded-3xl border border-white/10 shadow-2xl overflow-hidden">
-          {/* AI 回應區 */}
-          <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-3 sm:space-y-4 min-h-0">
+        {/* 對話框：正常流，不固定高度 */}
+        <div className="w-full max-w-3xl mx-auto backdrop-blur-md bg-white/5 rounded-2xl sm:rounded-3xl border border-white/10 shadow-2xl overflow-hidden">
+          {/* 訊息區：正常往下排列 */}
+          <div className="p-3 sm:p-6 space-y-3 sm:space-y-4">
             {messages.length === 0 && (
               <div className="flex justify-start animate-fade-in">
                 <div className="max-w-[90%] sm:max-w-[85%] bg-gradient-to-r from-purple-500/20 to-blue-500/20 text-white backdrop-blur-sm border border-white/10 px-4 py-4 sm:px-6 sm:py-5 rounded-2xl">
@@ -404,7 +412,7 @@ function TherapyContent() {
                       <p className="text-[10px] sm:text-xs text-white/60 mb-4 sm:mb-5 leading-relaxed">
                         我已經把這次對話的情感軌跡、核心議題、心理洞察整理成視覺化的心靈地圖,幫助你更清晰地看見自己。
                       </p>
-                      
+
                       <div className="flex flex-col space-y-2 sm:space-y-3">
                         <button
                           onClick={handleViewMindMap}
@@ -413,7 +421,7 @@ function TherapyContent() {
                           <span>🗺️</span>
                           <span>查看我的心靈地圖</span>
                         </button>
-                        
+
                         <button
                           onClick={handleClearChat}
                           className="w-full px-4 py-2.5 sm:px-5 sm:py-3 bg-white/10 hover:bg-white/20 rounded-xl text-white/80 text-xs sm:text-sm transition-all"
@@ -432,17 +440,17 @@ function TherapyContent() {
                 </div>
               </div>
             )}
-
-            <div ref={messagesEndRef} />
           </div>
 
-          {/* 輸入區 */}
-          <div className="p-2 sm:p-4 border-t border-white/10 backdrop-blur-sm bg-white/5 flex-shrink-0">
+          {/* 輸入區：正常文件流，位於頁面最底部 */}
+          <div ref={inputAreaRef} className="p-2 sm:p-4 border-t border-white/10 backdrop-blur-sm bg-white/5">
             <div className="flex space-x-2 sm:space-x-3">
               <textarea
+                ref={textareaRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyPress={handleKeyPress}
+                onFocus={handleTextareaFocus}
                 placeholder={isLimitReached ? '已達到訊息上限...' : '在這裡分享你的想法...'}
                 className="flex-1 bg-white/10 text-white placeholder-white/40 rounded-lg sm:rounded-xl px-3 py-2 sm:px-4 sm:py-3 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-purple-500/50 resize-none backdrop-blur-sm border border-white/10"
                 rows={1}
@@ -480,7 +488,7 @@ function TherapyContent() {
         .animate-fade-in {
           animation: fade-in 0.5s ease-out forwards;
         }
-        
+
         @keyframes slide-up {
           from { opacity: 0; transform: translateY(20px); }
           to { opacity: 1; transform: translateY(0); }
@@ -488,7 +496,7 @@ function TherapyContent() {
         .animate-slide-up {
           animation: slide-up 0.6s ease-out forwards;
         }
-        
+
         @keyframes slide-down {
           from { opacity: 0; transform: translate(-50%, -20px); }
           to { opacity: 1; transform: translate(-50%, 0); }
@@ -496,7 +504,7 @@ function TherapyContent() {
         .animate-slide-down {
           animation: slide-down 0.6s ease-out forwards;
         }
-        
+
         @keyframes pulse-subtle {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.8; }
